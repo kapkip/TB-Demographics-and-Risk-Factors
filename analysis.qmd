@@ -250,7 +250,7 @@ plt.rcParams["text.usetex"] = (
 # Show
 
 plt.show()
-# Really frustrated I can't generate " cri"p image (tried multiple formats/parameters)
+# Really frustrated I can't generate a crisp image (tried multiple formats/parameters)
 
 ```
 
@@ -391,7 +391,6 @@ rf_sankey.show()
 #Save
 #rf_sankey.write_html("outputs/rf_sankey.html", config={"responsive": True})
 
-
 ```
 
 
@@ -459,7 +458,7 @@ wpp_global_age = (
 ```{python}
 # Global Population Pyramid
 
-# Define custom colors
+# Define custom colors (color mapping is a little hit-or-miss with go)
 grey = "#A9A9A9"  # Light grey for Female
 darkgrey = "#696969"  # Dark grey for Male
 
@@ -480,7 +479,7 @@ global_pop = go.Figure()
 global_pop.add_trace(
     go.Bar(
         y=wpp_global_age["NewAgeGrp"],
-        x=-wpp_global_age["PopFemale"],  # Negative for females on the left
+        x=-wpp_global_age["PopFemale"],  # Negative for the left
         name="Female",
         orientation="h",
         marker=dict(color=grey, pattern=dict(shape="/")),  # Diagonal pattern
@@ -492,7 +491,7 @@ global_pop.add_trace(
 global_pop.add_trace(
     go.Bar(
         y=wpp_global_age["NewAgeGrp"],
-        x=wpp_global_age["PopMale"],  # Positive for males on the right
+        x=wpp_global_age["PopMale"],
         name="Male",
         orientation="h",
         marker=dict(color=darkgrey),
@@ -557,23 +556,23 @@ global_summary = region_summary.groupby('age_group', as_index=False).agg(
     total_m=('total_m', 'sum')
 )
 
-# Define a single global pyramid figure
+# Create a single figure
 global_tb_inc = go.Figure()
 
-# Add the female data (negative for the left side of the pyramid)
+# Add the female data
 global_tb_inc.add_trace(go.Bar(
     y=global_summary['age_group'],
-    x=-global_summary['total_f'],  # Negative for females
+    x=-global_summary['total_f'],
     name='Female',
     orientation='h',
     marker=dict(color='#4090A7', pattern=dict(shape='/')),  # Grey color with diagonal pattern
     hovertemplate='Age Group: %{y}<br>Female Cases: %{x:,}<extra></extra>'
 ))
 
-# Add the male data (positive for the right side of the pyramid)
+# Add the male data
 global_tb_inc.add_trace(go.Bar(
     y=global_summary['age_group'],
-    x=global_summary['total_m'],  # Positive for males
+    x=global_summary['total_m'],
     name='Male',
     orientation='h',
     marker=dict(color='#0D5D74'),
@@ -588,7 +587,7 @@ global_max_cases = int(np.ceil(global_max_cases / 100000) * 100000)  # Round up 
 tick_step = global_max_cases // 4  # Divide max cases into 4 intervals
 tick_vals = np.arange(-global_max_cases, global_max_cases + tick_step, tick_step)
 
-# Update layout with rounded ticks
+# Update layout with ticks
 global_tb_inc.update_layout(
     title="Global TB Incidence",
     xaxis=dict(
@@ -663,7 +662,7 @@ row = 1
 col = 1
 
 for region in region_titles:
-    # Filter summarized data for the region and sort by age group
+    # Filter for the region and sort by age group
     region_data = wpp_region_age_combined[wpp_region_age_combined['NormalizedLocation'] == region].sort_values(by='NewAgeGrp')
     
     # Add female population
@@ -720,7 +719,7 @@ region_pop_facet.show()
 ```{python}
 # TB incidence Faceted by Region using plotly.subplots
 
-# Define a mapping of region abbreviations to full names
+# Mapping region names
 region_full_names = {
     "AFR": "Africa",
     "AMR": "Americas",
@@ -871,7 +870,7 @@ region_rf["region_full"] = pd.Categorical(
     region_rf["region_full"], categories=region_order, ordered=True
 )
 
-# Sort risk factors by region with highest incidence (any)
+# Sort risk factors by region with highest incidence (any RF)
 region_rf = region_rf.sort_values("best", ascending=False)
 
 # The above sorts are both necessary to force the order of regions. I don't know how or why this works, but a single manual mapping was not working. There is probably a much more elegant solution out there.
@@ -908,7 +907,7 @@ regional_risk.update_traces(
 regional_risk.show()
 
 # Save
-regional_risk.write_html("outputs/regional_risk.html", config={"responsive": True})
+# regional_risk.write_html("outputs/regional_risk.html", config={"responsive": True})
 
 ```
 

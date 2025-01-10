@@ -1,5 +1,6 @@
 ---
 title: "2023 Tuberculosis Demographics and Risk Factors"
+author: "Cassandra Pantuso"
 format: 
   dashboard:
     theme: flatly
@@ -9,6 +10,7 @@ format:
 # TB Burden at a Glance
 
 ## {height="80%"}
+
 ###  {.tabset}
 
 #### TB Incidence
