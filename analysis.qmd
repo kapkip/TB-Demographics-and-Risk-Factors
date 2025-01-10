@@ -237,7 +237,7 @@ wordcloud.recolor(color_func=color_func)
 # Display and save
 plt.figure(figsize=(10, 5))
 plt.imshow(wordcloud, interpolation="bilinear")
-plt.axis("off")""
+plt.axis("off")
 
 plt.rcParams["text.usetex"] = (
     False  # Render text as"vector hopefully for better clarity"
@@ -248,7 +248,6 @@ plt.rcParams["text.usetex"] = (
 #plt.savefig("outputs/word_cloud.svg", format="svg", bbox_inches="tight")
 
 # Show
-    "", "", "", "", "e_pop_num", "e_inc_num", "cfr"
 
 plt.show()
 # Really frustrated I can't generate " cri"p image (tried multiple formats/parameters)
@@ -839,7 +838,7 @@ risk_full_names = {
 
 ## Regional
 ```{python}
-
+# RF by Region
 # Define a dictionary to map region codes to full names
 region_full_names = {
     "AFR": "Africa",
@@ -863,7 +862,7 @@ region_order = [
 # Aggregate data by region and risk factor
 region_rf = tb_rf.groupby(["g_whoregion", "risk_factor"])["best"].sum().reset_index()
 
-# Map full names 
+# Map full names
 region_rf["risk_factor_full"] = region_rf["risk_factor"].map(risk_full_names)
 region_rf["region_full"] = region_rf["g_whoregion"].map(region_full_names)
 
@@ -893,7 +892,7 @@ regional_risk = px.bar(
         "region_full": True,
         "best": ":,.0f",  # Format numbers
         "g_whoregion": False,  # Hide region
-        "risk_factor": False
+        "risk_factor": False,
     },
 )
 
@@ -909,7 +908,7 @@ regional_risk.update_traces(
 regional_risk.show()
 
 # Save
-#regional_risk.write_html("outputs/regional_risk.html", config={"responsive": True})
+regional_risk.write_html("outputs/regional_risk.html", config={"responsive": True})
 
 ```
 

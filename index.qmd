@@ -79,19 +79,20 @@ Uruguay
 
 # Risk Factors
 
-## {height=40%}
-### {width=40%}
+## {height=50%}
+
+### {width=30%}
+
 <iframe src="outputs/global_rf.html" width="100%" height="350px" frameborder="0">
 
 </iframe>
 
-### {width="60%""}
+### {width="70%"}
 <iframe src="outputs/regional_risk.html" width="100%" height="350px" frameborder="0">
 
 </iframe>
 
-## {height="60%""}
-
+## {height="50%"}
 <iframe src="outputs/rf_choropleth.html" width="100%" height="600px" frameborder="0">
 
 </iframe>
