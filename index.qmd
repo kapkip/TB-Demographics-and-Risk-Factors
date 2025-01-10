@@ -1,0 +1,143 @@
+---
+title: "2023 Tuberculosis Demographics and Risk Factors"
+format: 
+  dashboard:
+    theme: flatly
+    allow-html: true  
+---
+
+# TB Burden at a Glance
+
+## {height="80%"}
+###  {.tabset}
+
+#### TB Incidence
+
+![](outputs/word_cloud.svg){width=100%}
+
+<br>In this word cloud, the size of each country's name is proportionate to the total estimated TB incidence for that country in 2023.
+
+####  TB Incidence Rate
+
+<iframe src="outputs/inc_rate_map.html" width="100%" height="600px" frameborder="0">
+
+</iframe>
+
+#### Risk Factor Attributable Incidence
+
+<iframe src="outputs/rf_sankey.html" width="100%" height="600px" frameborder="0">
+
+</iframe>
+While not all cases of TB can be attributed to underlying risk factors, some can. Above is a sankey diagram that illustrates the regional burden of risk-factor associated TB cases in 2023
+
+## {height="20%"}
+
+:::{.valuebox title="Estimated Global TB Incidence" color="#5ABDA4"}
+10,844,410
+:::
+
+:::{.valuebox title="Mean Incidence Rate (per 100k)" color="#4090A7"}
+101
+:::
+
+:::{.valuebox title="Most Similar to:" color="#4090A7"}
+Greenland
+:::
+
+
+:::{.valuebox title="Median Incidence Rate (per 100k)" color="#516584"}
+41
+:::
+
+:::{.valuebox title="Most Similar to:" color="#516584"}
+Uruguay
+:::
+
+# TB Demographics
+
+###  {.tabset}
+
+#### Global Demographics
+<iframe src="outputs/global_pop.html" width="100%" height="800px" frameborder="0">
+
+</iframe>
+
+<iframe src="outputs/global_tb_inc.html" width="100%" height="600px" frameborder="0">
+
+</iframe>
+
+#### Regional Population
+<iframe src="outputs/region_pop_facet.html" width="100%" height="800px" frameborder="0">
+
+</iframe>
+
+#### Regional TB Incidence
+<iframe src="outputs/reg_tb_facet.html" width="100%" height="800px" frameborder="0">
+
+</iframe>
+
+
+# Risk Factors
+
+## {height=40%}
+<iframe src="outputs/global_rf.html" width="100%" height="350px" frameborder="0">
+
+</iframe>
+
+<iframe src="outputs/regional_risk.html" width="100%" height="350px" frameborder="0">
+
+</iframe>
+
+## {height=60%}
+
+<iframe src="outputs/rf_choropleth.html" width="100%" height="600px" frameborder="0">
+
+</iframe>
+
+# Discussion and Data
+
+**Factors Across Global Regions**
+
+The global burden of tuberculosis (TB) varies significantly across regions, populations, and age groups, as shown by demographic pyramids and risk factor analysis. These disparities provide important insights into how TB disproportionately affects certain demographics and how regional vulnerabilities shape the disease burden.
+
+**Demographic Patterns in TB Burden**
+
+The distribution of TB burden reflects differences in population structures, age-specific incidence, and gender dynamics across regions:
+
+- **South-East Asia (SEA):** SEA bears the highest global TB burden, with elevated incidence across all ages above 15. Older adults (65+) contribute disproportionately due to higher incidence rates relative to their smaller population size. Gender parity is observed among younger adults (15-34), while men dominate in older age groups.
+
+- **Africa (AFR):** TB burden is concentrated among younger populations (15-44), reflecting the region’s youthful population structure. Men generally experience higher incidence rates than women.
+
+- **Western Pacific Region (WPR):** WPR’s squarish population pyramid is paired with elevated TB incidence in older adults (65+). Men consistently have higher rates across all age groups.
+
+- **Eastern Mediterranean Region (EMR):** EMR shows peak incidence in adults aged 15-44, with a slight dip in 45-64 and a sharp rise at 65+. The pyramidal population structure amplifies the burden in older age groups due to their higher incidence rates.
+
+- **Americas (AMR):** TB incidence is highest in younger adults, particularly the 25-34 age group. Men consistently have higher incidence rates across age groups.
+
+- **Europe (EUR):** TB incidence peaks among middle-aged adults (35-44 and 45-54). Men show consistently higher rates, reflecting long-term exposures and disparities.
+
+Globally, the burden of TB reflects significant regional and demographic variations. While working-age populations carry the highest burden in most regions, older adults (65+) contribute disproportionately in areas with higher incidence rates and smaller elderly populations, such as SEA and EMR. Gender disparities are consistent across all regions, with men experiencing higher TB incidence than women, particularly in older age brackets.
+
+**Regional Variation in Risk Factors**
+
+Region-specific challenges play a significant role in shaping TB risk factors, which differ widely across regions:
+
+- **Africa:** HIV/AIDS remains a major contributor to TB incidence, requiring integrated TB and HIV care approaches.
+
+- **South-East Asia and Eastern Mediterranean:** Undernutrition and smoking are dominant risk factors, while alcohol use disorders are also significant in SEA. These regions face dual challenges of addressing nutritional deficiencies and positive health behaviors across age groups.
+
+- **Western Pacific Region:** Smoking is the most significant risk factor, followed by alcohol use, and undernutrition. This region's TB burden is top-heavy, trending older, requiring interventions that address these specific risk factors and the associated vulnerabilities of aging populations.
+
+- **Americas and Europe:** Behavioral factors, particularly alcohol use and smoking, are primary drivers of TB risk.
+
+The map of dominant risk factors by country gives a more granular view of these regional variations, illustrating how local risk factors influence TB incidence. For example, undernutrition dominates some parts of SEA, while smoking is a more significant risk factor in others. Additionally while HIV/AIDS remains the primary risk factor in sub-Saharan Africa, dominant risk factors vary by country.
+
+**Conclusion**
+
+In summary, TB disproportionately affects male and working-age populations globally, with additional variations in age, gender, and regional risk factors. Global risk factors collectively account for just over 30% of the global TB burden, playing a significant role in shaping disease patterns. However, these leading risk factors are not uniform across regions, and different countries face unique challenges.
+
+The demographic and risk factors described above emphasize how vulnerabilities differ widely across regions, shaped by local demographics, behavioral trends, and comorbidities. Addressing these challenges requires hyper-focused public health strategies that align with the unique contexts of each region and country. By tailoring interventions to these specific needs, it is possible to reduce the global TB burden and make meaningful progress toward controlling the disease.
+
+**Data**
+
+This dashboard was inspired by the [Global Tuberculosis Report 2024](https://www.who.int/teams/global-tuberculosis-programme/tb-reports/global-tuberculosis-report-2024) created by the WHO Global Tuberculosis Program. A link to the 2023 datasets used in this dashboard can be found [here](https://www.who.int/teams/global-tuberculosis-programme/data). Global demographic data for 2023 was sourced from the [UN World Population Prospects](https://population.un.org/wpp/) data sets.

@@ -1,0 +1,1013 @@
+---
+title: "TB Demographics and Risk Factor Analysis"
+author: "Cassandra Pantuso"
+date: "2024-12-16"
+format: html
+---
+
+# Notes
+
+Data wrangling and visualizations have been done in this document and imported into index.qmd. This for sake of dashboard markdown clarity, as some of the code chunks are quite long. Value box calculations were manually placed in index.qmd from outputs generated here.
+
+ Code that saves images and html to the outputs folder has been commented out, but all plots and diagrams will show when the corresponding code chunk is run.
+
+
+# Library Import
+
+```{python}
+# Libraries and Packages
+
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from plotly.subplots import make_subplots
+
+# Finer control over plotly elements (useful for pyramids and sankey)
+import plotly.graph_objects as go
+
+# Other vis tools
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+
+
+```
+
+# Data 
+
+```{python}
+# Data Import
+
+# 2024 WHO TB Incidence estimations disaggregated
+## The WHO disaggregation was done in R and is available on github
+who_inc_est = pd.read_csv('data/TB_burden_age_sex_2024-12-12.csv')
+
+# WHO Burden estimate (has WHO REGION codes)
+## Longitudinal set with stats for summary/further analysis
+who_burden = pd.read_csv('data/tb_burden_countries_2024-12-16.csv')
+
+# 2024 UN population by gender and age
+wpp_2024_age = pd.read_csv('data/WPP2024_PopulationByAge5GroupSex_Medium.csv.gz')
+```
+
+
+# Data Wrangling: Incidence
+```{python}
+# TB burden df
+tb_burden = who_burden[['country', 'iso3', 'g_whoregion', 'year', 'e_pop_num', 'e_inc_num', 'cfr']]
+
+tb_burden_2023 = tb_burden[tb_burden['year'] == 2023]
+
+tb_burden_2023['inc_rate_100k'] = tb_burden_2023['e_inc_num'] / tb_burden_2023['e_pop_num'] * 100000
+```
+
+# Value Box Calculations
+```{python}
+#Value Boxes
+
+# Basic Incidence Calculations
+global_inc_val = tb_burden_2023['e_inc_num'].sum()
+
+global_mean_rate_val = round(tb_burden_2023['inc_rate_100k'].mean())
+
+global_median_rate_val = round(tb_burden_2023['inc_rate_100k'].median())
+
+print("total estimated global incidence: ", global_inc_val)
+print("average global incidence rate (per 100k):", global_mean_rate_val)
+print("median global incidence rate (per 100k):", global_median_rate_val)
+
+
+# Finding countries closest to mean and median
+
+# Finding differences between each value and the mean/median
+tb_burden_2023['mean_diff'] = abs(tb_burden_2023['inc_rate_100k'] - global_mean_rate_val)
+tb_burden_2023['median_diff'] = abs(tb_burden_2023['inc_rate_100k'] - global_median_rate_val)
+
+# Find the row with the smallest difference for the mean
+closest_to_mean = tb_burden_2023.loc[tb_burden_2023['mean_diff'].idxmin()]
+
+# Find the row with the smallest difference for the median
+closest_to_median = tb_burden_2023.loc[tb_burden_2023['median_diff'].idxmin()]
+
+
+print(f"Country closest to mean:\n{closest_to_mean}")
+print(f"Country closest to median:\n{closest_to_median}")
+```
+
+
+## Data Wrangling: WHO TB Demographics
+
+```{python}
+#Initial Wrangling
+
+# Grabbing just the WHO region codes (is not in cc and could not find a library)
+iso_who = who_burden[who_burden['year'] == 2023][['iso3', 'g_whoregion']]
+
+# Merging with region
+who_inc_full = who_inc_est.merge(iso_who, on='iso3', how='left')
+
+# Filtering a set that only has sequential age and gender across (not risk factors or aggregates)
+
+age_grps = ['0-4', '5-14', '15-24', '25-34', '35-44', '45-54', '55-64', '65plus'] 
+
+tb_age_gender = who_inc_full[
+    who_inc_full['age_group'].isin(age_grps) & 
+    who_inc_full['sex'].isin(['m', 'f'])
+]
+
+# Ordering (hopefully will help with viz)
+tb_age_gender['age_group'] = pd.Categorical(tb_age_gender['age_group'], categories=age_grps, ordered=True)
+
+
+# DF of just gender counts
+tb_gender_all = who_inc_full[
+    (who_inc_full['age_group'] == 'all') & 
+    (who_inc_full['sex'].isin(['f', 'm']))
+]
+
+# Pivoting so each gender has unique entry (necessary for pyramid)
+
+static_cols = ['g_whoregion', 'country', 'iso3', 'age_group', 'sex', 'best']
+
+#pivot so age group has unique entries
+tb_age_gender_pivot = tb_age_gender[static_cols]
+
+tb_age_gender_pivot = tb_age_gender_pivot.pivot_table(
+    index=['g_whoregion', 'country', 'iso3', 'age_group'], 
+    columns='sex',
+    values='best'
+).reset_index()
+```
+
+```{python}
+
+# Creating Regional summary for pyramids
+region_summary = tb_age_gender_pivot.groupby(['g_whoregion', 'age_group']).agg(
+    total_f=('f', 'sum'),
+    total_m=('m', 'sum')
+).reset_index()
+
+# Force the age group order in the DataFrame, apparently this has to be done and redone
+region_summary['age_group'] = pd.Categorical(region_summary['age_group'], categories=age_grps, ordered=True)
+```
+
+### Data Wrangling: RFs
+```{python}
+# Filtering a set that only has risk factor attributable incidence
+
+rf_grps = ['alc', 'dia', 'hiv', 'smk', 'und']
+
+tb_rf = who_inc_full[
+    who_inc_full['risk_factor'].isin(rf_grps)
+]
+
+tb_rf_region = tb_rf.groupby(['g_whoregion', 'risk_factor'], as_index=False)['best'].sum()
+```
+
+### RF palette/dictionary
+```{python}
+
+risk_palette = {
+    'und': '#264653',
+    'alc': '#2a9d8f',
+    'smk': '#e9c46a',
+    'hiv': '#e76f51',
+    'dia': '#f4a261'
+}
+
+risk_full_names = {
+    'und': 'Undernutrition',
+    'alc': 'Alcohol Use Disorders',
+    'smk': 'Smoking',
+    'hiv': 'HIV/AIDS',
+    'dia': 'Diabetes'
+}
+
+
+```
+
+
+
+# Page 1: TB Burden/Incidence Overview
+
+## TB Incidence
+
+```{python}
+# Word cloud: Incidence by country colored by region
+
+# Make DF
+tb_cloud = tb_burden_2023[["country", "g_whoregion", "e_inc_num"]]
+
+# Convert DF to dictionaries
+frequencies = dict(zip(tb_cloud["country"], tb_cloud["e_inc_num"]))
+region_map = dict(zip(tb_cloud["country"], tb_cloud["g_whoregion"]))
+
+# Path to the font file
+font_path = "assets/Roboto/Roboto-Light.ttf"
+
+# Palette
+region_palette = {
+    "AFR": "#4B7A97",
+    "AMR": "#2ABCB9",
+    "EMR": "#35D2BB",
+    "EUR": "#93E98D",
+    "SEA": "#516584",
+    "WPR": "#4090A7",
+}
+
+
+# Custom color function
+def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
+    region = region_map.get(word, "EUR")  # Default to 'EUR' if region not found
+    return region_palette.get(
+        region, "#000000"
+    )  # Default to black if region not mapped
+
+
+# Create the WordCloud
+wordcloud = WordCloud(
+    width=1600,
+    height=550,
+    background_color="white",
+    prefer_horizontal=0.9,
+    font_path=font_path,
+).generate_from_frequencies(frequencies)
+
+wordcloud.recolor(color_func=color_func)
+""
+# Display and save
+plt.figure(figsize=(10, 5))
+plt.imshow(wordcloud, interpolation="bilinear")
+plt.axis("off")""
+
+plt.rcParams["text.usetex"] = (
+    False  # Render text as"vector hopefully for better clarity"
+)
+
+
+# Save
+#plt.savefig("outputs/word_cloud.svg", format="svg", bbox_inches="tight")
+
+# Show
+    "", "", "", "", "e_pop_num", "e_inc_num", "cfr"
+
+plt.show()
+# Really frustrated I can't generate " cri"p image (tried multiple formats/parameters)
+
+```
+
+
+## TB Incidence Rate
+
+```{python}
+# Incidence Rate Choropleth
+
+# Define color continuum
+cont_colors = ["#3EC2AE", "#172E38"]
+
+# Choropleth of incidence rate
+inc_rate_map = px.choropleth(
+    tb_burden_2023,
+    locations="iso3",  # Map to iso codes
+    color="inc_rate_100k",
+    hover_name="country",
+    title="Global TB Incidence Rate",
+    projection="natural earth",  # Map projection type
+    color_continuous_scale=cont_colors,  # Color scale (adjustable)
+    labels={"incidence_rate": "Incidence Rate (per capita)"},  # Legend label
+)
+
+# Modifying hover tooltip content
+inc_rate_map.update_traces(
+    hovertemplate=(
+        "<b>%{hovertext}</b><br>"  # Country name
+        "Incidence Rate (per 100k): %{z:.2f}<br>"  # Color variable
+        "Estimated Incidence: %{customdata[0]:,}<br>"  # e_inc_num
+        "Population: %{customdata[1]:,}<extra></extra>"  # e_pop_num
+    ),
+    customdata=tb_burden_2023[
+        ["e_inc_num", "e_pop_num"]
+    ].values,  # Data for custom fields
+    hovertext=tb_burden_2023["country"],  # Country names for hover text
+)
+
+# Update layout
+inc_rate_map.update_layout(
+    coloraxis_showscale=False,  # Removes legend for continuous choros
+    title_x=0.5,  # Center the title
+    geo=dict(
+        showframe=False,  # Removes bounding
+        showcoastlines=False # Removes Antarctica coast
+    ),
+    template=None,  # Effectively removes Antarctica
+    margin=dict(l=0, r=0, t=40, b=0),  # Less padding
+)
+
+# Display 
+inc_rate_map.show()
+
+#inc_rate_map.write_html("outputs/inc_rate_map.html")
+```
+
+
+## Risk Factor Attributable Incidence
+```{python}
+# Sankey Diagram 
+# 
+# this is just for fun
+
+# Palette
+risk_palette = {
+    'Undernutrition': '#264653',
+    'Alcohol Use Disorders': '#2a9d8f',
+    'Smoking': '#e9c46a',
+    'HIV': '#e76f51',
+    'Diabetes': '#f4a261'
+}
+
+# Map regions to full names
+region_labels = {
+    'AFR': 'Africa',
+    'AMR': 'Americas',
+    'EMR': 'Eastern Mediterranean',
+    'EUR': 'Europe',
+    'SEA': 'Southeast Asia',
+    'WPR': 'Western Pacific'
+}
+
+# Map full names for risk factors
+risk_labels = {
+    'und': 'Undernutrition',
+    'alc': 'Alcohol Use Disorders',
+    'smk': 'Smoking',
+    'hiv': 'HIV',
+    'dia': 'Diabetes'
+}
+
+# Create full labels for all nodes
+all_nodes = (
+    [region_labels[abbr] for abbr in tb_rf_region['g_whoregion'].unique()] +
+    [risk_labels[abbr] for abbr in tb_rf_region['risk_factor'].unique()]
+)
+node_map = {node: i for i, node in enumerate(all_nodes)}
+
+# Map source and target to indices
+source_indices = tb_rf_region['g_whoregion'].map(lambda x: node_map[region_labels[x]])
+target_indices = tb_rf_region['risk_factor'].map(lambda x: node_map[risk_labels[x]])
+
+# Assign colors to nodes
+node_colors = []
+for node in all_nodes:
+    if node in risk_palette:
+        node_colors.append(risk_palette[node])  # Use risk factor color
+    else:
+        node_colors.append('gray')  # Deep grey for regions
+
+# Create Sankey diagram
+rf_sankey = go.Figure(data=[go.Sankey(
+    node=dict(
+        pad=15,
+        thickness=20,
+        line=dict(color="black", width=0.5),
+        label=all_nodes,
+        color=node_colors  # Map colors to nodes
+    ),
+    link=dict(
+        source=source_indices,
+        target=target_indices,
+        value=tb_rf_region['best']  # Use 'best' column for flow values
+    )
+)])
+
+# Update layout with global font size for node labels
+rf_sankey.update_layout(
+    title_text="Risk Factor Attributable Incidence by Region",
+    font=dict(size=14),  # Set font size globally for node labels
+    font_size=14,
+    title_x=0.5  # Center the title
+)
+
+# Display
+rf_sankey.show()
+
+#Save
+#rf_sankey.write_html("outputs/rf_sankey.html", config={"responsive": True})
+
+
+```
+
+
+
+# Page 2: TB Demographics
+
+## Data Wrangling: UN WPP Dataset
+
+```{python}
+# UN Population Data
+
+# Wrangling WPP age group
+
+# Filtering for correct region set
+wpp_region_age = wpp_2024_age[wpp_2024_age['Location'].str.startswith('WHO:')][['Location', 'Time', 'AgeGrp', 'PopMale', 'PopFemale', 'PopTotal']]
+
+# Filter for the year 2023
+wpp_region_age = wpp_region_age[wpp_region_age['Time'] == 2023]
+
+# Mapping for age groups to match WHO data (UN data goes by 5 yr increments)
+age_mapping = {
+    '0-4': '0-4',
+    '5-9': '5-14', '10-14': '5-14',
+    '15-19': '15-24', '20-24': '15-24',
+    '25-29': '25-34', '30-34': '25-34',
+    '35-39': '35-44', '40-44': '35-44',
+    '45-49': '45-54', '50-54': '45-54',
+    '55-59': '55-64', '60-64': '55-64',
+    '65-69': '65plus', '70-74': '65plus', 
+    '75-79': '65plus', '80-84': '65plus',
+    '85-89': '65plus', '90-94': '65plus',
+    '95-99': '65plus', '100+': '65plus'
+}
+
+
+# Apply the mapping to create a new column
+wpp_region_age['NewAgeGrp'] = wpp_region_age['AgeGrp'].map(age_mapping)
+
+# Multiply population values by 1000 (UN data is in thousands)
+wpp_region_age['PopMale'] *= 1000
+wpp_region_age['PopFemale'] *= 1000
+wpp_region_age['PopTotal'] *= 1000
+
+# Group by and sum the populations
+wpp_region_age_combined = wpp_region_age.groupby(['Location', 'Time', 'NewAgeGrp']).agg({
+    'PopMale': 'sum',
+    'PopFemale': 'sum',
+    'PopTotal': 'sum'
+}).reset_index()
+
+# Aggregate the data across all regions
+wpp_global_age = (
+    wpp_region_age_combined.groupby(['Time', 'NewAgeGrp'])
+    .agg({
+        'PopMale': 'sum', 
+        'PopFemale': 'sum', 
+        'PopTotal': 'sum'
+    })
+    .reset_index()
+)
+```
+
+### Global Population Pyramid
+
+```{python}
+# Global Population Pyramid
+
+# Define custom colors
+grey = "#A9A9A9"  # Light grey for Female
+darkgrey = "#696969"  # Dark grey for Male
+
+# Define the correct age group order
+age_grps = ["0-4", "5-14", "15-24", "25-34", "35-44", "45-54", "55-64", "65plus"]
+# Ensure 'NewAgeGrp' is categorical and ordered
+wpp_global_age["NewAgeGrp"] = pd.Categorical(
+    wpp_global_age["NewAgeGrp"], categories=age_grps, ordered=True
+)
+
+# Sort the DataFrame by the ordered 'NewAgeGrp'
+wpp_global_age = wpp_global_age.sort_values("NewAgeGrp")
+
+# Create a single population pyramid
+global_pop = go.Figure()
+
+# Add female population
+global_pop.add_trace(
+    go.Bar(
+        y=wpp_global_age["NewAgeGrp"],
+        x=-wpp_global_age["PopFemale"],  # Negative for females on the left
+        name="Female",
+        orientation="h",
+        marker=dict(color=grey, pattern=dict(shape="/")),  # Diagonal pattern
+        hovertemplate="Age Group: %{y}<br>Female Population: %{x:,}<extra></extra>",
+    )
+)
+
+# Add male population
+global_pop.add_trace(
+    go.Bar(
+        y=wpp_global_age["NewAgeGrp"],
+        x=wpp_global_age["PopMale"],  # Positive for males on the right
+        name="Male",
+        orientation="h",
+        marker=dict(color=darkgrey),
+        hovertemplate="Age Group: %{y}<br>Male Population: %{x:,}<extra></extra>",
+    )
+)
+
+# Update layout
+global_pop.update_layout(
+    title_text="Global Population",
+    xaxis=dict(
+        tickvals=[
+            -800000000,
+            -600000000,
+            -400000000,
+            -200000000,
+            0,
+            200000000,
+            400000000,
+            600000000,
+            800000000,
+        ],
+        ticktext=[
+            "800,000,000 (Female)",
+            "600 M",
+            "400 M",
+            "200 M",
+            "0",
+            "200 M",
+            "400 M",
+            "600 M",
+            "800 M (Male)",
+        ],
+    ),
+    yaxis=dict(title="Age Group"),
+    barmode="overlay",
+    plot_bgcolor="white",
+    showlegend=True,
+    legend_title="Gender",
+    height=600,
+    width=600,
+)
+
+# Display
+global_pop.show()
+
+# Save
+#global_pop.write_html("outputs/global_pop.html", config={"responsive": True})
+
+```
+
+
+
+## Global TB Incidence Pyramid
+
+```{python}
+# Global TB Incidence Pyramid
+
+# Aggregate the data globally by summing totals across all regions
+global_summary = region_summary.groupby('age_group', as_index=False).agg(
+    total_f=('total_f', 'sum'),
+    total_m=('total_m', 'sum')
+)
+
+# Define a single global pyramid figure
+global_tb_inc = go.Figure()
+
+# Add the female data (negative for the left side of the pyramid)
+global_tb_inc.add_trace(go.Bar(
+    y=global_summary['age_group'],
+    x=-global_summary['total_f'],  # Negative for females
+    name='Female',
+    orientation='h',
+    marker=dict(color='#4090A7', pattern=dict(shape='/')),  # Grey color with diagonal pattern
+    hovertemplate='Age Group: %{y}<br>Female Cases: %{x:,}<extra></extra>'
+))
+
+# Add the male data (positive for the right side of the pyramid)
+global_tb_inc.add_trace(go.Bar(
+    y=global_summary['age_group'],
+    x=global_summary['total_m'],  # Positive for males
+    name='Male',
+    orientation='h',
+    marker=dict(color='#0D5D74'),
+    hovertemplate='Age Group: %{y}<br>Male Cases: %{x:,}<extra></extra>'
+))
+
+# Find the global max and round up to the nearest 100,000
+global_max_cases = max(global_summary["total_f"].max(), global_summary["total_m"].max())
+global_max_cases = int(np.ceil(global_max_cases / 100000) * 100000)  # Round up to the nearest 100k
+
+# Generate whole, rounded tick values
+tick_step = global_max_cases // 4  # Divide max cases into 4 intervals
+tick_vals = np.arange(-global_max_cases, global_max_cases + tick_step, tick_step)
+
+# Update layout with rounded ticks
+global_tb_inc.update_layout(
+    title="Global TB Incidence",
+    xaxis=dict(
+        range=[-global_max_cases, global_max_cases],  # Ensures the 0-point is centered
+        tickvals=tick_vals,
+        ticktext=[f'{abs(x):,}' for x in tick_vals]  # Show absolute values with commas
+    ),
+    yaxis=dict(
+        categoryorder="array",
+        categoryarray=global_summary['age_group']
+    ),
+    barmode="overlay",
+    plot_bgcolor="white",
+    legend=dict(title="Gender"),
+)
+
+# Display
+global_tb_inc.show()
+
+# Save
+#global_tb_inc.write_html("outputs/global_tb_inc.html", config={"responsive": True})
+```
+
+
+### Regional Pop Facet
+
+```{python}
+# Regional population facet
+
+# Using make_subplots from plotly.subplots
+
+# Define custom colors, mapping is a bit weird
+grey = '#A9A9A9' 
+darkgrey = '#696969'
+
+# Remap region titles
+who_region_mapping = {
+    'WHO: African region (AFRO)': 'Africa',
+    'WHO: Americas (AMRO)': 'Americas',
+    'WHO: Eastern Mediterranean Region (EMRO)': 'Eastern Mediterranean',
+    'WHO: European Region (EURO)': 'Europe',
+    'WHO: South-East Asia region (SEARO)': 'South-East Asia',
+    'WHO: Western Pacific region (WPRO)': 'Western Pacific'
+}
+
+# Map region titles to normalized names
+wpp_region_age_combined['NormalizedLocation'] = wpp_region_age_combined['Location'].map(who_region_mapping)
+region_titles = wpp_region_age_combined['NormalizedLocation'].unique()
+
+
+# Force 'NewAgeGrp' order
+wpp_region_age_combined['NewAgeGrp'] = pd.Categorical(
+    wpp_region_age_combined['NewAgeGrp'],
+    categories=age_grps,
+    ordered=True
+)
+
+# Determine the number of rows and columns for the 3x3 grid
+n_cols = 3
+n_rows = (len(region_titles) + n_cols - 1) // n_cols  # Calculate rows needed for all regions
+
+# Create a subplot grid
+region_pop_facet = make_subplots(
+    rows=n_rows,
+    cols=n_cols,
+    subplot_titles=region_titles,
+    shared_yaxes=True
+)
+
+# Track position in the grid
+row = 1
+col = 1
+
+for region in region_titles:
+    # Filter summarized data for the region and sort by age group
+    region_data = wpp_region_age_combined[wpp_region_age_combined['NormalizedLocation'] == region].sort_values(by='NewAgeGrp')
+    
+    # Add female population
+    region_pop_facet.add_trace(go.Bar(
+        y=region_data['NewAgeGrp'],
+        x=-region_data['PopFemale'],  # Negative for females on the left
+        name='Female',
+        orientation='h',
+        marker=dict(
+            color=grey,
+            pattern=dict(shape='/')
+        ),
+        hovertemplate='Age Group: %{y}<br>Female Population: %{x:,}<extra></extra>'
+    ), row=row, col=col)
+    
+    # Add male population
+    region_pop_facet.add_trace(go.Bar(
+        y=region_data['NewAgeGrp'],
+        x=region_data['PopMale'],  # Positive for males on the right
+        name='Male',
+        orientation='h',
+        marker=dict(color=darkgrey),
+        hovertemplate='Age Group: %{y}<br>Male Population: %{x:,}<extra></extra>'
+    ), row=row, col=col)
+    
+    # Update grid position
+    col += 1
+    if col > n_cols:
+        col = 1
+        row += 1
+
+# Global layout settings
+region_pop_facet.update_layout(
+    title_text="Total Regional Population by Age and Gender",
+    barmode='overlay',
+    plot_bgcolor='white',
+    showlegend=False,
+    height=400 * n_rows,
+    width=400 * n_cols
+)
+
+# Display
+region_pop_facet.show()
+
+# Save
+#region_pop_facet.write_html("outputs/region_pop_facet.html")
+
+```
+
+
+
+### Region TB facet
+
+```{python}
+# TB incidence Faceted by Region using plotly.subplots
+
+# Define a mapping of region abbreviations to full names
+region_full_names = {
+    "AFR": "Africa",
+    "AMR": "Americas",
+    "EMR": "Eastern Mediterranean",
+    "EUR": "Europe",
+    "SEA": "South-East Asia",
+    "WPR": "Western Pacific",
+}
+
+# Map the region abbreviations to full names
+region_summary["region_full_name"] = region_summary["g_whoregion"].map(
+    region_full_names
+)
+
+# Get unique full region names
+region_titles = region_summary["region_full_name"].unique()
+
+# Determine the number of rows and columns for the 3x3 grid
+n_cols = 3
+n_rows = (
+    len(region_titles) + n_cols - 1
+) // n_cols  # Calculate rows needed for all regions
+
+# Create a subplot grid
+reg_tb_facet = make_subplots(
+    rows=n_rows, cols=n_cols, subplot_titles=region_titles, shared_yaxes=True
+)
+
+# Track position in the grid
+row = 1
+col = 1
+
+for region, full_name in zip(region_summary["g_whoregion"].unique(), region_titles):
+    # Filter summarized data for the region
+    region_data = region_summary[region_summary["g_whoregion"] == region].sort_values(
+        by="age_group"
+    )
+
+    # Add female cases
+    reg_tb_facet.add_trace(
+        go.Bar(
+            y=region_data["age_group"],
+            x=-region_data["total_f"],  # Negative for females on the left
+            name="Female",
+            orientation="h",
+            marker=dict(color="lightseagreen", pattern=dict(shape="/")),
+            hovertemplate="Age Group: %{y}<br>Total Female Cases: %{x:,}<extra></extra>",
+        ),
+        row=row,
+        col=col,
+    )
+
+    # Add male cases
+    reg_tb_facet.add_trace(
+        go.Bar(
+            y=region_data["age_group"],
+            x=region_data["total_m"],  # Positive for males on the right
+            name="Male",
+            orientation="h",
+            marker=dict(color="teal"),
+            hovertemplate="Age Group: %{y}<br>Total Male Cases: %{x:,}<extra></extra>",
+        ),
+        row=row,
+        col=col,
+    )
+
+    # Update grid position
+    col += 1
+    if col > n_cols:
+        col = 1
+        row += 1
+
+# Global layout settings
+reg_tb_facet.update_layout(
+    title_text="Regional TB Incidence by Age and Gender",
+    yaxis=dict(title="Age Group"),
+    barmode="overlay",
+    plot_bgcolor="white",
+    showlegend=False,
+    height=400 * n_rows,
+    width=400 * n_cols,
+)
+
+# Display
+reg_tb_facet.show()
+
+# Save
+#reg_tb_facet.write_html("outputs/reg_tb_facet.html")
+
+```
+
+
+# Risk Factors
+
+### Palettes and Dictionaries
+
+```{python}
+
+risk_palette = {
+    'und': '#264653',
+    'alc': '#2a9d8f',
+    'smk': '#e9c46a',
+    'hiv': '#e76f51',
+    'dia': '#f4a261'
+}
+
+risk_full_names = {
+    'und': 'Undernutrition',
+    'alc': 'Alcohol Use Disorders',
+    'smk': 'Smoking',
+    'hiv': 'HIV/AIDS',
+    'dia': 'Diabetes'
+}
+```
+
+## Regional
+```{python}
+
+# Define a dictionary to map region codes to full names
+region_full_names = {
+    "AFR": "Africa",
+    "AMR": "Americas",
+    "EMR": "Eastern Mediterranean",
+    "EUR": "Europe",
+    "SEA": "South-East Asia",
+    "WPR": "Western Pacific",
+}
+
+# Manually define the region order
+region_order = [
+    "South-East Asia",
+    "Africa",
+    "Western Pacific",
+    "Eastern Mediterranean",
+    "Americas",
+    "Europe",
+]
+
+# Aggregate data by region and risk factor
+region_rf = tb_rf.groupby(["g_whoregion", "risk_factor"])["best"].sum().reset_index()
+
+# Map full names 
+region_rf["risk_factor_full"] = region_rf["risk_factor"].map(risk_full_names)
+region_rf["region_full"] = region_rf["g_whoregion"].map(region_full_names)
+
+# Sort regions manually
+region_rf["region_full"] = pd.Categorical(
+    region_rf["region_full"], categories=region_order, ordered=True
+)
+
+# Sort risk factors by region with highest incidence (any)
+region_rf = region_rf.sort_values("best", ascending=False)
+
+# The above sorts are both necessary to force the order of regions. I don't know how or why this works, but a single manual mapping was not working. There is probably a much more elegant solution out there.
+
+
+# Bar chart
+regional_risk = px.bar(
+    region_rf,
+    x="region_full",
+    y="best",
+    color="risk_factor",
+    title="Incidence Attributable to Risk Factors by Region",
+    labels={"best": "Incidence", "region_full": "", "risk_factor": "Risk Factor"},
+    barmode="group",
+    color_discrete_map=risk_palette,
+    hover_data={
+        "risk_factor_full": True,  # Full name
+        "region_full": True,
+        "best": ":,.0f",  # Format numbers
+        "g_whoregion": False,  # Hide region
+        "risk_factor": False
+    },
+)
+
+# Update layout
+regional_risk.update_layout(title_x=0.5, showlegend=False)
+
+# Update Hover Tooltip
+regional_risk.update_traces(
+    hovertemplate="<b>%{customdata[0]}</b><br><b>Region:</b> %{customdata[1]}<br><b>Incidence:</b> %{y:,}"
+)
+
+# Display
+regional_risk.show()
+
+# Save
+#regional_risk.write_html("outputs/regional_risk.html", config={"responsive": True})
+
+```
+
+
+## Global Risk
+
+```{python}
+# Global Bar of Risk Factors
+
+# Filter for incidence
+tb_rf_filt = tb_rf[tb_rf["measure"] == "inc"]
+
+# Aggregate incidence globally by risk factor
+global_data = (
+    tb_rf_filt.groupby("risk_factor")["best"]
+    .sum()
+    .reset_index()
+    .sort_values(by="best", ascending=False)  # Sort descending
+)
+
+# Add a column for full risk factor names
+global_data["risk_factor_full"] = global_data["risk_factor"].map(risk_full_names)
+
+# Bar Chart
+global_rf = px.bar(
+    global_data,
+    x="best",
+    y="risk_factor_full",
+    color="risk_factor",
+    title="Global Incidence Attributable to Risk Factors",
+    labels={"best": "", "risk_factor_full": "Risk Factor"},
+    orientation="h",  # Horizontal
+    color_discrete_map=risk_palette 
+)
+
+# Update layout
+global_rf.update_layout(
+    yaxis={"categoryorder": "total ascending"},
+    title_x=0.5, 
+    showlegend=False  
+)
+
+# Update Hover Tooltip
+global_rf.update_traces(
+    hovertemplate="<b>%{y}</b><br>Incidence: %{x:,}"
+)
+
+# Display
+global_rf.show()
+
+# Save
+#global_rf.write_html("outputs/global_rf.html", config={"responsive": True})
+```
+
+
+## Global Choropleth
+
+```{python}
+# Global risk factor choropleth
+
+# Find the risk factor with the maximum 'best' value for each country
+country_max_rf = tb_rf_filt.loc[tb_rf_filt.groupby("country")["best"].idxmax()]
+
+# Map the full names and colors for the risk factors
+country_max_rf["risk_factor_full"] = country_max_rf["risk_factor"].map(risk_full_names)
+country_max_rf["color"] = country_max_rf["risk_factor"].map(risk_palette)
+
+# Create the choropleth map
+rf_choropleth = px.choropleth(
+    country_max_rf,
+    locations="iso3",
+    color="risk_factor",
+    hover_name="country",
+    hover_data={
+        "risk_factor_full": True,  # Show full name
+        "best": ":,.0f"
+    },
+    title="Dominant Risk Factor by Country",
+    color_discrete_map=risk_palette,
+    labels={"risk_factor": "Risk Factor"},
+)
+
+# Update
+rf_choropleth.update_layout(
+    showlegend=False,
+    title_x=0.5,  # Center
+    geo=dict(showframe=False, showcoastlines=False, projection_type="natural earth"),
+)
+
+# Update hover tooltip
+rf_choropleth.update_traces(
+    hovertemplate="<b>%{hovertext}</b><br>Risk Factor: %{customdata[0]}<br>Incidence: %{customdata[1]:,}"
+)
+
+# Display
+rf_choropleth.show()
+
+# Save
+#rf_choropleth.write_html("outputs/rf_choropleth.html", config={"responsive": True})
+```
+
