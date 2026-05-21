@@ -1,2 +1,8 @@
+# 1. Force Quarto files to be counted as Python
 *.qmd linguist-language=Python
-*.html linguist-documentation=true
+
+# 2. Ignore autogen folders and compiled HTML
+index_files/** linguist-vendored
+outputs/** linguist-vendored
+assets/** linguist-vendored
+*.html linguist-vendored
